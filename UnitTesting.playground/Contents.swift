@@ -240,14 +240,91 @@ class APILoaderTests: XCTestCase {
             XCTAssertEqual(request.url?.query?.contains("lat=37.3293"), true)
             return (HTTPURLResponse(), mockJSONData)
         }
-        let expectation = XCTestExpectation(description: "response")
-        loader.loadAPIRequest(requestData: inputCoordinate) { pointsOfInterest, error in
-            XCTAssertEqual(pointsOfInterest, [PointOfInterest(name: "MyPointOfInterest")])
-            expectation.fulfill()
-        }
-        wait(for: [expectation], timeout: 1)
+//        let expectation = XCTestExpectation(description: "response")
+//        loader.loadAPIRequest(requestData: inputCoordinate) { pointsOfInterest, error in
+//            XCTAssertEqual(pointsOfInterest, [PointOfInterest(name: "MyPointOfInterest")])
+//            expectation.fulfill()
+//        }
+//        wait(for: [expectation], timeout: 1)
     }
 }
 APILoaderTests.defaultTestSuite.run()
 
-//End-to-End Tests - Prepare URLRequest -> Create URLSession Task -> Parse Response -> UpdateView
+class CurrentLocationProviderOld {
+    static let authChangedNotification = Notification.Name("AuthChanged")
+    func notifyAuthChanged() {
+        let name = CurrentLocationProvider.authChangedNotification
+        NotificationCenter.default.post(name: name, object: self)
+    }
+}
+
+
+class PointsOfInterestTableViewControllerOld {
+    var observer: AnyObject?
+    init() {
+        let name = CurrentLocationProvider.authChangedNotification
+        observer = NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            self?.handleAuthChanged()
+        }
+    }
+
+    var didHandleNotification = false
+    func handleAuthChanged() {
+        didHandleNotification = true
+    }
+}
+class CurrentLocationProvider {
+    static let authChangedNotification = Notification.Name("AuthChanged")
+    
+    let notificationCenter: NotificationCenter
+    init(notificationCenter: NotificationCenter = .default) {
+        self.notificationCenter = notificationCenter
+    }
+    func notifyAuthChanged() {
+        let name = CurrentLocationProvider.authChangedNotification
+        notificationCenter.post(name: name, object: self)
+    }
+}
+class PointsOfInterestTableViewController {
+    let notificationCenter: NotificationCenter
+    var observer: AnyObject?
+    init(notificationCenter: NotificationCenter = .default) {
+        self.notificationCenter = notificationCenter
+        let name = CurrentLocationProvider.authChangedNotification
+        observer = notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            self?.handleAuthChanged()
+        }
+    }
+    var didHandleNotification = false
+    func handleAuthChanged() {
+        didHandleNotification = true
+    }
+}
+class PointsOfInterestTableViewControllerTests: XCTestCase {
+    func testNotification() {
+        let notificationCenter = NotificationCenter()
+        let observer = PointsOfInterestTableViewController(notificationCenter:
+            notificationCenter)
+        XCTAssertFalse(observer.didHandleNotification)
+        //       Notification posted to just this center, isolating the test
+        let name = CurrentLocationProvider.authChangedNotification
+        notificationCenter.post(name: name, object: nil)
+        XCTAssertTrue(observer.didHandleNotification)
+    }
+}
+PointsOfInterestTableViewControllerTests.defaultTestSuite.run()
+
+class CurrentLocationProviderTests: XCTestCase {
+    func testNotifyAuthChanged() {
+        let notificationCenter = NotificationCenter()
+        let poster = CurrentLocationProvider(notificationCenter: notificationCenter)
+        // Notification only sent to this specific center, isolating test
+        let name = CurrentLocationProvider.authChangedNotification
+        let expectation = XCTNSNotificationExpectation(name: name, object: poster,
+                                                       notificationCenter: notificationCenter)
+        poster.notifyAuthChanged()
+        wait(for: [expectation], timeout: 0)
+    }
+}
+
+CurrentLocationProviderTests.defaultTestSuite.run()
